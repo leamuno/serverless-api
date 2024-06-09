@@ -37,7 +37,7 @@ def getPokemon(pokemonId):
     try:
         response = table.get_item(
             Key={
-                "pokemonId": pokemonId
+                "pokemonID": pokemonId
             }
         )
         if "Item" in response:
@@ -45,17 +45,17 @@ def getPokemon(pokemonId):
         else:
             return buildResponse(404, {"message": f"Pokemon ID: {pokemonId} not found"})
     except Exception as e:
-        logger.exception("Pokemon GET failed")
+        logger.exception("Pokemon GET failed: %s", e)
         return buildResponse(500, {"message": "Internal Server Error"})
 
 def getPokemons():
     try:
         response = table.scan()
-        result = response.get("Pokemons", [])
+        result = response.get("Items", [])
 
         while "LastEvaluatedKey" in response:
             response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
-            result.extend(response.get("Pokemons", []))
+            result.extend(response.get("Items", []))
 
         body = {
             "pokemons": result
@@ -63,7 +63,7 @@ def getPokemons():
 
         return buildResponse(200, body)
     except Exception as e:
-        logger.exception("Pokemons GET failed")
+        logger.exception("Pokemons GET failed: %s", e)
         return buildResponse(500, {"message": "Internal Server Error"})
 
 def savePokemon(requestBody):
@@ -76,7 +76,7 @@ def savePokemon(requestBody):
         }
         return buildResponse(200, body)
     except Exception as e:
-        logger.exception("Pokemon POST failed")
+        logger.exception("Pokemon POST failed: %s", e)
         return buildResponse(500, {"message": "Internal Server Error"})
 
 def buildResponse(statusCode, body=None):

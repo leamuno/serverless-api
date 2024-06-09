@@ -1,7 +1,8 @@
 import boto3
 import json
-from custom_encoder import CustomeEncoder
+from custom_encoder import CustomEncoder
 import logging
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -12,7 +13,7 @@ table = dynamodb.Table(dynamodbTableName)
 getMethod = "GET"
 postMethod = "POST"
 healthPath = "/health"
-pokemonPath = "/pokeom"
+pokemonPath = "/pokemon"
 pokemonsPath = "/pokemons"
 
 def lambda_handler(event, context):
@@ -24,65 +25,68 @@ def lambda_handler(event, context):
     elif httpMethod == getMethod and path == pokemonPath:
         response = getPokemon(event["queryStringParameters"]["pokemonId"])
     elif httpMethod == getMethod and path == pokemonsPath:
-        response = getPokemons
+        response = getPokemons()
     elif httpMethod == postMethod and path == pokemonPath:
         response = savePokemon(json.loads(event["body"]))
     else:
-        response = buildResponse(404, "Not Found")
+        response = buildResponse(404, {"message": "Not Found"})
 
     return response
 
 def getPokemon(pokemonId):
     try:
-        response = table.get_pokemon(
-            Key = {
-                "pokemonId" : pokemonId
+        response = table.get_item(
+            Key={
+                "pokemonId": pokemonId
             }
         )
-        if "Pokemon" in response:
-            return buildResponse(200, response["Pokemon"])
+        if "Item" in response:
+            return buildResponse(200, response["Item"])
         else:
-            return buildResponse(404, {"Message", "ProductID: %s not found" % pokemonId})
-    except:
-        logger.exception("Pokemon GET is on fire")
+            return buildResponse(404, {"message": f"Pokemon ID: {pokemonId} not found"})
+    except Exception as e:
+        logger.exception("Pokemon GET failed")
+        return buildResponse(500, {"message": "Internal Server Error"})
 
 def getPokemons():
     try:
         response = table.scan()
-        result = response["Pokemon"]
+        result = response.get("Pokemons", [])
 
         while "LastEvaluatedKey" in response:
             response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
-            result.extend(response["Pokemon"])
+            result.extend(response.get("Pokemons", []))
 
         body = {
-            "pokemons" : result
+            "pokemons": result
         }
 
         return buildResponse(200, body)
-    except:
-        logger.exception("Pokemons GET is on fire")
+    except Exception as e:
+        logger.exception("Pokemons GET failed")
+        return buildResponse(500, {"message": "Internal Server Error"})
 
 def savePokemon(requestBody):
     try:
-        table.put_pokemon(Pokemon=requestBody)
+        table.put_item(Item=requestBody)
         body = {
-            "Operation" : "Save",
-            "Message" : "Success",
-            "Pokemon" : requestBody
+            "Operation": "Save",
+            "Message": "Success",
+            "Pokemon": requestBody
         }
         return buildResponse(200, body)
-    except:
-        logger.exception("Pokemon POST is on fire")
+    except Exception as e:
+        logger.exception("Pokemon POST failed")
+        return buildResponse(500, {"message": "Internal Server Error"})
 
 def buildResponse(statusCode, body=None):
     response = {
-        "statusCode" : statusCode,
-        "headers" : {
-            "Content-Type" : "application/json",
-            "Access-Control-Allow-Orgin" : "*"
+        "statusCode": statusCode,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
         }
     }
     if body is not None:
-        response["body"] = json.dumps(body, cls=CustomeEncoder)
-        return response
+        response["body"] = json.dumps(body, cls=CustomEncoder)
+    return response
